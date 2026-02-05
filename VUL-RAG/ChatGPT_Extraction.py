@@ -2,6 +2,7 @@ import argparse
 from components.knowledge_extractor import KnowledgeExtractor
 from common.util import common_util
 import common.config as cfg
+from v2testing import get_cwes
 import pdb
 
 # "CWE-416": "Use After Free", !!
@@ -62,6 +63,13 @@ def parse_command_line_arguments():
     )
 
     parser.add_argument(
+        '--benchmark',
+        type = str,
+        default='PairVul',
+        help = 'Specifies the benchmark to run on'
+    )
+
+    parser.add_argument(
         '--resume',
         action = 'store_true',
         help = 'Whether to resume from a checkpoint.'
@@ -79,13 +87,20 @@ def parse_command_line_arguments():
 
 if __name__ == '__main__':
 
+
     args = parse_command_line_arguments()
+    
+    if args.benchmark is not None:
+        cwes = get_cwes(args.benchmark)
+    else:
+        cwes = args.CWE_list
+
     print("command line parsed\n")
-    KnowledgeE = KnowledgeExtractor(model_name = args.model_name, V2=True, benchmark="Java")
+    KnowledgeE = KnowledgeExtractor(model_name = args.model_name, V2=True, benchmark=args.benchmark)
     #knowledge extraction
     print("begin extracting knowledge")
     if args.extract_knowledge:
-        for cwe_name in args.CWE_list:
+        for cwe_name in cwes:
             KnowledgeE.extract_knowledge_from_cwe(
                 CWE_name = cwe_name,
                 extract_only_once = args.extract_only_once,
@@ -94,4 +109,4 @@ if __name__ == '__main__':
             )
 
     if args.store_knowledge:
-        KnowledgeE.document_store(cwe_name_list = args.CWE_list)
+        KnowledgeE.document_store(cwe_name_list = cwes)

@@ -8,28 +8,29 @@ import pickle
 from pathlib import Path
 
 fakekey = "fake"
+key_file = 'api_keys'
 
 #write all of the keys
-with open("openkey_openai_api_key.pkl", "wb") as f:
+with open(f"{key_file}/openkey_openai_api_key.pkl", "wb") as f:
     pickle.dump(fakekey, f)
 
-with open("deepseek_api_key.pkl", "wb") as f:
+with open(f"{key_file}/deepseek_api_key.pkl", "wb") as f:
     pickle.dump(fakekey, f)
 
-with open("qwen_api_key.pkl", "wb") as f:
+with open(f"{key_file}/qwen_api_key.pkl", "wb") as f:
     pickle.dump(fakekey, f)
 
-with open("claude_api_key.pkl", "wb") as f:
+with open(f"{key_file}/claude_api_key.pkl", "wb") as f:
     pickle.dump(fakekey, f)
 
-with open("gemini_api_key.pkl", "wb") as f:
+with open(f"{key_file}/gemini_api_key.pkl", "wb") as f:
     pickle.dump(fakekey, f)
 
 
 #read all the keys to make sure
-with open("openkey_openai_api_key.pkl", "rb") as f:
+with open(f"{key_file}/openkey_openai_api_key.pkl", "rb") as f:
     print(pickle.load(f))
-with open("gemini_api_key.pkl", "rb") as f:
+with open(f"{key_file}/gemini_api_key.pkl", "rb") as f:
     print(pickle.load(f))
-with open("claude_api_key.pkl", "rb") as f:
+with open(f"{key_file}/claude_api_key.pkl", "rb") as f:
     print(pickle.load(f))

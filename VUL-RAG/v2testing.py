@@ -27,6 +27,7 @@ from common.util.common_util import fill_batch_log, merge_batch_logs, fill_searc
 from components.knowledge_extractor import KnowledgeExtractor
 from components.VulRAG import VulRAGDetector
 from collections import defaultdict
+import random
 
 
 def get_cwes(benchmark): #returns a list of CWE values
@@ -414,7 +415,7 @@ def count_found_items(item, cve, embed):
     
     return total_matches
 
-def search(benchmark, desc, k, search_type, dir):
+def search(benchmark, k, search_type, dir):
     cwes = get_cwes(benchmark)
     input_dir = Path(constant.V2_ENHANCED_DATA_DIR.format(benchmark=benchmark)) 
     if dir is None:
@@ -682,7 +683,12 @@ def compute_ndcg_at_k(ranked_cve_ids, target_cve_id, max_relevant, ks=(1, 3, 5, 
 
     return ndcg_scores
 
-def rerank(benchmark, rerank_type, k, model, top_N, subdir, new_dir, learned):
+def rerank(benchmark, rerank_type, model, top_N, subdir, new_dir):
+
+    if rerank_type > 7:
+        learned=True
+    else:
+        learned=False
 
     if subdir is None:
         input_dir = Path(constant.V2_SEARCH_RESULTS_DIR.format(benchmark=benchmark))
@@ -973,7 +979,7 @@ def decision(benchmark, subdir, model, resume, prompt, description):
             DataUtils.save_json(output_path, {"vul_data": vul_output_list, "non_vul_data": non_vul_output_list})
 
     #calculate metrics and trim down item
-    cut_down(output_dir)
+    cut_down(output_dir, benchmark)
 
     return 0
 
@@ -989,12 +995,12 @@ def get_final(vul, sol): #returns the final output 1, 0, -1
 
     return final
 
-def cut_down(output_dir):
+def cut_down(output_dir, benchmark):
     num_list = [9, 8, 7, 6, 5, 4, 3, 2, 1]
 
     for item in os.listdir(output_dir):
         filepath = os.path.join(output_dir, item)
-        if "metrics" in item:
+        if "metrics" in item or 'bootstrap' in item:
             continue
         else:
             with open(filepath, "r", encoding='utf-8') as f:
@@ -1040,7 +1046,11 @@ def cut_down(output_dir):
                 json.dump(new_data, fw, indent=4, ensure_ascii=False)
 
     for num in num_list:
-        calculate_VD_metrics(str(parent_dir / constant.DETECTION_RESULTS_DIR.format(k=num)), max_items=num, V2=True)
+        filepath = str(parent_dir / constant.DETECTION_RESULTS_DIR.format(k=num))
+        cwes = get_cwes(benchmark)
+        calculate_VD_metrics(filepath, max_items=num, V2=True)
+        output = bootstrap_pairs_all_cwes(filepath, cwes)
+        evaluate_bootstrap_samples(output, filepath, cwes)
 
 def extract_confidence(text: str):
     """
@@ -1253,6 +1263,112 @@ def get_ndcg(file, cwes, benchmark, ks=(1,3,5,10)):
     final_averages = {f"NDCG@{k}": np.mean(v) if v else 0.0 for k, v in aggregated_scores.items()}
     return final_averages
 
+def bootstrap_pairs_all_cwes(
+    input_dir: str,
+    CWE_LIST,
+    n_bootstrap: int = 10000,
+    seed: int = 42,
+):
+    """
+    Phase 1:
+    - Load each CWE file
+    - Pair vul/non-vul items by id
+    - Perform bootstrap resampling over pairs
+    - Return all shuffled samples without computing metrics
+    """
+    random.seed(seed)
+
+    paired_by_cwe = {}
+
+    # ---- Load + pair once per CWE ----
+    for cwe in CWE_LIST:
+        path = os.path.join(input_dir, f"{cwe}.json")
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        vul_by_id = {item["id"]: item for item in data["vul_data"]}
+        non_vul_by_id = {item["id"]: item for item in data["non_vul_data"]}
+
+        common_ids = sorted(vul_by_id.keys() & non_vul_by_id.keys())
+        
+        if not common_ids:
+            raise RuntimeError(f"No paired items found for {cwe}")
+
+        paired_by_cwe[cwe] = [
+            (vul_by_id[i], non_vul_by_id[i]) for i in common_ids
+        ]
+
+    # ---- Bootstrap over pairs for all CWEs ----
+    shuffled = []
+
+    for _ in range(n_bootstrap):
+        iteration = {}
+
+        for cwe, pairs in paired_by_cwe.items():
+            sampled_pairs = random.choices(pairs, k=len(pairs))
+
+            iteration[cwe] = {
+                "sampled_vul": [v for v, _ in sampled_pairs],
+                "sampled_non_vul": [nv for _, nv in sampled_pairs],
+            }
+
+        shuffled.append(iteration)
+
+    return shuffled
+
+def evaluate_bootstrap_samples(shuffled, input_dir, CWE_LIST, ci=(2.5, 97.5)):
+    """
+    Phase 2:
+    - Iterate over precomputed bootstrap samples
+    - Call calculate_VD_metrics once per iteration
+    - Aggregate metric distributions per CWE and Overall
+    - Finalize to mean + CI
+    """
+    output_path = Path(input_dir) / "bootstrap.json"
+
+    # results[cwe][metric] -> list of bootstrap values
+    results = defaultdict(lambda: defaultdict(list))
+
+    # --- collect bootstrap distributions ---
+    for iteration in tqdm(shuffled, desc="Bootstrap iterations"):
+
+        # 1. Get metrics for all CWEs + Overall
+        metrics_by_cwe = calculate_VD_metrics(input_dir, V2=True, save_to_file=False, bootstrap=iteration)
+
+        # 2. Store all metrics (including Overall from calculate_VD_metrics)
+        for cwe, metrics in metrics_by_cwe.items():
+            for metric_name, value in metrics.items():
+                if value is not None:
+                    results[cwe][metric_name].append(value)
+        
+        # 3. Add NDCG to the Overall metrics
+        ndcgs = get_ndcg(iteration, CWE_LIST, 'TruePairVul')
+        for k_metric, value in ndcgs.items():
+            results["Overall"][k_metric].append(value)
+
+    # --- finalize: mean + confidence intervals ---
+    finalized_data = {}
+
+    for cwe, metrics in results.items():
+        finalized_data[cwe] = {}
+        for metric_name, values in metrics.items():
+            values = np.asarray(values)
+
+            # Round final statistics to 4 decimals for consistency
+            finalized_data[cwe][metric_name] = {
+                "mean": round(float(values.mean()), 3),
+                "ci_low": round(float(np.percentile(values, ci[0])), 3),
+                "ci_high": round(float(np.percentile(values, ci[1])), 3),
+            }
+
+    with open(output_path, "w") as f:
+        json.dump(finalized_data, f, indent=2)
+
+    return finalized_data
+
+
+
+
 if __name__ == '__main__':
 
     args = parse_command_line_arguments()
@@ -1268,41 +1384,30 @@ if __name__ == '__main__':
 
     elif args.action == 'search':
         if args.all:
-            search(args.benchmark, args.model, args.top_K, 0, "FINAL_bm25")
-            search(args.benchmark, args.model, args.top_K, 1, "FINAL_bm25+embed")
-            search(args.benchmark, args.model, args.top_K, 2, "FINAL_embed")
-            search(args.benchmark, args.model, args.top_K, 3, "FINAL_partial_learnedrerank")
-            search(args.benchmark, args.model, args.top_K, 4, "FINAL_full_learnedrerank")
+            search(args.benchmark,  args.top_K, 0, "FINAL_bm25")
+            search(args.benchmark,  args.top_K, 1, "FINAL_bm25+embed")
+            search(args.benchmark,  args.top_K, 2, "FINAL_embed")
+            search(args.benchmark,  args.top_K, 3, "FINAL_partial_learnedrerank")
+            search(args.benchmark,  args.top_K, 4, "FINAL_full_learnedrerank")
         else:
-            search(args.benchmark, args.model, args.top_K, args.action_type, args.new_directory)
+            search(args.benchmark,  args.top_K, args.action_type, args.new_directory)
 
     elif args.action == 'rerank':
 
         if args.all:
-            rerank("PairVul", 0, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_50-50", False)
-            rerank("PairVul", 1, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_25-75", False)
-            rerank("PairVul", 2, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_75-25", False)
-            rerank("PairVul", 3, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_EMB", False)
-            rerank("PairVul", 4, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_BM25", False)
-            rerank("PairVul", 5, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_FUNC", False)
-            rerank("PairVul", 6, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_PURP", False)
-            rerank("PairVul", 7, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_CODE", False)
-            rerank("PairVul", 8, args.top_K, args.model, 10, "FINAL_partial_learnedrerank", "FINAL_PARTIAL", True)
-            rerank("PairVul", 9, args.top_K, args.model, 10, "FINAL_full_learnedrerank", "FINAL_FULL", True)
+            rerank(args.benchmark, 0, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_50-50" )
+            rerank(args.benchmark, 1, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_25-75" )
+            rerank(args.benchmark, 2, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_75-25" )
+            rerank(args.benchmark, 3, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_EMB" )
+            rerank(args.benchmark, 4, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_BM25" )
+            rerank(args.benchmark, 5, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_FUNC" )
+            rerank(args.benchmark, 6, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_PURP" )
+            rerank(args.benchmark, 7, 'gpt-3.5-turbo', args.top_N, "FINAL_bm25+embed", "FINAL_CODE" )
+            rerank(args.benchmark, 8, 'gpt-3.5-turbo', args.top_N, "FINAL_partial_learnedrerank", "FINAL_PARTIAL" )
+            rerank(args.benchmark, 9, 'gpt-3.5-turbo', args.top_N, "FINAL_full_learnedrerank", "FINAL_FULL" )
             
-            rerank("TruePairVul", 0, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_50-50", False)
-            rerank("TruePairVul", 1, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_25-75", False)
-            rerank("TruePairVul", 2, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_75-25", False)
-            rerank("TruePairVul", 3, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_EMB", False)
-            rerank("TruePairVul", 4, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_BM25", False)
-            rerank("TruePairVul", 5, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_FUNC", False)
-            rerank("TruePairVul", 6, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_PURP", False)
-            rerank("TruePairVul", 7, args.top_K, args.model, 10, "FINAL_bm25+embed", "FINAL_CODE", False)
-            rerank("TruePairVul", 8, args.top_K, args.model, 10, "FINAL_partial_learnedrerank", "FINAL_PARTIAL", True)
-            rerank("TruePairVul", 9, args.top_K, args.model, 10, "FINAL_full_learnedrerank", "FINAL_FULL", True)
-
         else:
-            rerank(args.benchmark, args.action_type, args.top_K, args.model, args.top_N, args.input_dir, args.new_directory, args.learned)
+            rerank(args.benchmark, args.action_type, 'gpt-3.5-turbo', args.top_N, args.input_dir, args.new_directory)
 
 
     elif args.action == 'decision':
@@ -1314,16 +1419,16 @@ if __name__ == '__main__':
 
 
     elif args.action == 'test':
-        output_dir = '/home/ludhamm/Code/Vul-RAG_Research/Vul-RAG/partial/PairVul/6_decision_results/sota_claude-sonnet-4-5-20250929_prompt=3/10_maxentries_results'
+        output_dir = '/home/ludhamm/Code/Vul-RAG_Research/Vul-RAG/partial/PairVul/6_decision_results/fard/10_maxentries_results'
         
         # cwes = get_cwes(args.benchmark)
 
         # ndcg = get_ndcg(output_dir, cwes, args.benchmark)
         
         # print(ndcg)
-        calculate_VD_metrics(output_dir, V2=True)
+        #calculate_VD_metrics(output_dir, V2=True)
         
         
-        # cut_down(output_dir)
+        cut_down(output_dir, 'PairVul')
     else:
         raise Exception("There is an incorrect action verb here")
