@@ -1,122 +1,173 @@
-LLMs with retrieval augmentation excel at knowledge-intensive tasks but often fail to distinguish semantically similar yet critically different inputs, a core obstacle to reliable reasoning. We present {Vul-RAG+}, a retrieval-augmented reasoning framework that improves grounding and reduces overconfidence through calibrated prompts and a hybrid retriever combining embeddings, lexical similarity, and a learned re-ranker. To assess its quality, we introduce {TruePairVul}, a benchmark ensuring each query has a relevant entry. Experiments show Vul-RAG+ significantly improves pairwise discrimination, grounding reliability, and calibration over strong baselines. We validate our approach on the industry-standard BigVul dataset and a Java code segment, demonstrating applicability beyond Linux kernel vulnerabilities and C/C++ code. In addition, we evaluate multiple model variants to assess robustness across different architectures. Beyond code analysis, our framework and evaluation provide broader lessons for retrieval-augmented NLP in fine-grained reasoning tasks.
+# Vul-RAG+
 
+LLMs with retrieval augmentation excel at knowledge-intensive tasks, but they often struggle to distinguish between semantically similar yet critically different inputs—an important obstacle to reliable reasoning.
 
-How to recreate results:
+**Vul-RAG+** is a retrieval-augmented reasoning framework designed to improve grounding and reduce overconfidence through:
+- Calibrated prompts
+- A hybrid retriever combining embeddings, lexical similarity, and a learned re-ranker
 
-1. Install Elasticsearch
-* Utilized Version 9.2.3
-* Ensure connection through the ES_CONFIG in common/config.py
+To support rigorous evaluation, we introduce **TruePairVul**, a benchmark that ensures every query has at least one relevant entry. Experiments demonstrate that Vul-RAG+ significantly improves pairwise discrimination, grounding reliability, and calibration over strong baselines.
 
+We validate our approach on the industry-standard **BigVul** dataset as well as a **Java code segment**, showing applicability beyond Linux kernel vulnerabilities and C/C++ code. We also evaluate multiple model variants to assess robustness across architectures. Beyond vulnerability analysis, this framework provides broader insights for retrieval-augmented NLP in fine-grained reasoning tasks.
 
-2. Build virtual environment
-* Utilize the provided requirements.txt
+---
 
+## Reproducing Results
 
-3. Load API Keys
-* Create folder common/api_keys
-* Load file with provided common/load_keys.py file 
+### 1. Install Elasticsearch
+- Tested with **Elasticsearch 9.2.3**
+- Ensure the connection is configured via `ES_CONFIG` in `common/config.py`
 
+---
 
-4. Load Elasticsearch with data using ChatGPTExtraction.py
+### 2. Build the Virtual Environment
+- Create and activate a virtual environment
+- Install dependencies using the provided `requirements.txt`
 
-* Run divide_data.py in partial/{benchmark}/1_raw_data
+---
 
-* Run *python ChatGPTExtraction.py* with the following parameters
+### 3. Load API Keys
+- Create the directory:
+  ```
+  common/api_keys/
+  ```
+- Add your API key files
+- Load them using:
+  ```
+  python common/load_keys.py
+  ```
 
-* *--model_name str* (We used the default model of gpt-3.5-turbo, but you can set a different model if desired)
+---
 
-* *--store_knowledge* (signals the system to put knowledge in elasticsearch)
+### 4. Load Elasticsearch with Data
+Run data extraction using `ChatGPTExtraction.py`.
 
-* *--extract_knowledge* (signals system to extract to a json file)
+1. Divide raw data:
+   ```
+   python divide_data.py
+   ```
+   from:
+   ```
+   partial/{benchmark}/1_raw_data
+   ```
 
-* *--benchmark str* (Specifies the benchmark that will be run, and subsequently the CWEs)
+2. Run extraction:
+   ```
+   python ChatGPTExtraction.py --benchmark <benchmark> [options]
+   ```
 
-* SPECIAL CASE: BigVul is a testset only. Please run ChatGPTExtraction on PairVul, and copy PairVul's 2_elasticsearch_ready directory into BigVul's 2_elasticsearch_ready directory.
+**Options**
+- `--model_name str`  
+  Default: `gpt-3.5-turbo`
+- `--store_knowledge`  
+  Store extracted knowledge in Elasticsearch
+- `--extract_knowledge`  
+  Save extracted knowledge to JSON
 
+**Special Case: BigVul**
+- BigVul is a *test-only* dataset
+- Run `ChatGPTExtraction.py` on **PairVul**
+- Copy:
+  ```
+  PairVul/2_elasticsearch_ready
+  ```
+  into:
+  ```
+  BigVul/2_elasticsearch_ready
+  ```
 
-5. Enrich test data
+---
 
-* Run *python v2testing.py* with the following parameters
+### 5. Enrich Test Data
+Run:
+```
+python v2testing.py -action enrich_test --benchmark <benchmark> --model <model>
+```
 
-* *-action str* (should be "enrich_test")
+- Default model: `gpt-3.5-turbo`
 
-* *--benchmark str* (Specifies the benchmark directory and cwes we are running on)
+---
 
-* *--model str* (Specifies the model to use for testset preprocessing. Our testing utilized gpt-3.5-turbo which is the default)
+### 6. Run Search
+```
+python v2testing.py -action search --benchmark <benchmark> [options]
+```
 
+**Options**
+- `--top_K int`  
+  Number of candidates returned from search
+- `--action_type int`
+  - `0`: BM25 only (Vul-RAG original)
+  - `1`: BM25 + embeddings (no formatting)
+  - `2`: Embeddings only
+  - `3`: BM25 + embeddings (formatted for learned reranker, Vul-RAG+)
+  - `4`: BM25 + embeddings (lazy learned reranker)
+- `--new_directory str`  
+  Output subdirectory
+- `--all`  
+  Run all search types
 
-6. Run search
+---
 
-* Run *python v2testing.py* with the following parameters
+### 7. Run Reranking
+```
+python v2testing.py -action rerank --benchmark <benchmark> [options]
+```
 
-* *-action str* (should be "search")
+**Options**
+- `--action_type`
+  1. RRF (50/50 BM25–Embedding)
+  2. RRF (75/25)
+  3. RRF (0/100)
+  4. RRF (100/0, Vul-RAG original)
+  5. Code-only signals
+  6. Function-only signals
+  7. Purpose-only signals
+  8. Lazy learned reranker
+  9. Full learned reranker (Vul-RAG+)
+- `--top_N int`  
+  Number of entries passed to decision-making
+- `--input_dir str`  
+  Input directory format (RRF or learned)
+- `--new_directory str`
+- `--all`
 
-* *--benchmark str* (Specifies the benchmark directory and cwes we are running on)
+---
 
-* *--top_K int* (Controls the length of lists returned from searching. This is different from the amount of information provided to the decision making step.)
+### 8. Run Decision Making
+```
+python v2testing.py -action decision --benchmark <benchmark> --input_dir <dir> [options]
+```
 
-* *--action_type int* (Specifies what type of search to perform)
-    0: Search only using BM25 as used in Vul-RAG original
-    1: Uses BM25 and embeddings with no formatting applied
-    2: Searches only embeddings
-    3: Searches using BM25 and embeddings and formats for input to the learned reranker as used in Vul-RAG+
-    4: Searches using BM25 and embeddings and formats for input into the lazy learned reranker ie. no backfilling
+**Options**
+- `--desc str`  
+  Description for output directory
+- `--model str`  
+  Model used for decision making
+- `--resume`  
+  Resume interrupted runs
+- `--prompt`
+  - `0`: Original Vul-RAG prompt
+  - `1`: + Reordering
+  - `2`: + Positional Emphasis
+  - `3`: + Role Neutralization (Vul-RAG+)
 
-* *--new_directory str* (Specifies a new subdirectory to place results into)
+**Note**
+- Decision making assumes a maximum knowledge list length of **10**
+- The system evaluates sublists of size 10 → 1
+- To modify this behavior, edit `cut_down()` in `v2testing.py`
 
-* *--all* (Runs on all possible action types)
+---
 
+## Metrics
+Metrics are computed for:
+- Each individual CWE
+- Overall performance
 
-7. Run reranking
+Outputs:
+- `{cwe}_metrics.json`  
+  Single-run metrics
+- `bootstrap.json`  
+  Bootstrap results over 10,000 samples, including means and 95% confidence intervals
 
-* Run *python v2testing.py* with the following parameters
-
-* *-action str* (should be "rerank")
-
-* *--benchmark str* (Specifies the benchmark directory and cwes we are running on)
-
-* *--action_type* (Specifies what type of reranking to perform)
-    1: RRF with 50-50 weighting (BM25 - Embed) 
-    2: RRF with 75-25 weighting (BM25 - Embed)
-    3: RRF with 0-100 weighting (BM25 - Embed)
-    4: RRF with 100-0 weighting (BM25 - Embed) used in Vul-RAG original
-    5: RRF with only signals from Code
-    6: RRF with only signals from Function
-    7: RRF with only signals from Purpose
-    8: Learned Reranker with lazy reranking
-    9: Full Learned Reranker used in Vul-RAG+
-
-* *--top_N int* (Controls the amount of knowledge returned from this step. Directly controls the amount of knowldge the decision step recieves.)
-
-* *--new_directory str* (Specifies a new subdirectory to place results into)
-
-* *--all* (Runs on all possible rerank types)
-
-* *--input_dir str* (Specifies the input_directory. Make sure this matches the format you are trying to rerank. Possible formats are RRF format or learned format)
-
-
-8. Run decision making
-
-* Run *python v2testing.py* with the following parameters
-
-* *-action str* (should be "decision")
-
-* *--benchmark str* (Specifies the benchmark directory and cwes we are running on)
-
-* *--input_dir str* (Specifies the input_directory.)
-
-* *--desc str* (Give a description to your output directory.)
-
-* *--model str* (Specify the model that runs the decision making process)
-
-* *--resume* (Allows resuming functionality if the process is interrupted)
-
-* *--prompt* (Specifies the prompt type to use. Prompt types can be edited in common/common_prompt.py)
-    0: Original prompt used in Vul_RAG original
-    1: +Reordering
-    2: +Positional Emphasis
-    3: +Role Neutralization. This prompt is used in Vul-RAG+
-
-* NOTE! This file is set to take in a reranked list with a maximum knowledge list length of 10. This function will run with N=10 then cut down to N = 9, 8, 7, ..., 1. If you want to change what sub-length files are created please see the top of cut_down() within v2testing.py. 
-
-Metrics will run on all length files. Metrics are two-fold. A {cwe}_metrics .json file will be created for each CWE as well as for Overall metrics. This file holds the metrics run a single time and holds all gathered information. A bootstrap.json file will also be created which holds some metrics run on bootstrap over pairs 10,000 times. This will contain mean and 95% confidence metrics for the main metrics. If you want to add metrics to bootstrap.json please check the 
+To add additional bootstrap metrics, refer to the relevant section in the codebase.
