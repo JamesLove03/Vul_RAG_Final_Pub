@@ -1,0 +1,594 @@
+{
+  "CWE-20": {
+    "f1": {
+      "mean": 0.642,
+      "ci_low": 0.544,
+      "ci_high": 0.733
+    },
+    "pair_acc": {
+      "mean": 0.391,
+      "ci_low": 0.286,
+      "ci_high": 0.5
+    },
+    "vul_brier": {
+      "mean": 0.302,
+      "ci_low": 0.222,
+      "ci_high": 0.384
+    },
+    "sol_brier": {
+      "mean": 0.344,
+      "ci_low": 0.242,
+      "ci_high": 0.466
+    },
+    "inf_acc": {
+      "mean": 0.735,
+      "ci_low": 0.6,
+      "ci_high": 0.857
+    },
+    "mis_acc": {
+      "mean": 0.515,
+      "ci_low": 0.375,
+      "ci_high": 0.658
+    },
+    "presence": {
+      "mean": 0.685,
+      "ci_low": 0.543,
+      "ci_high": 0.815
+    },
+    "input_tok": {
+      "mean": 499777.729,
+      "ci_low": 370151.95,
+      "ci_high": 652034.55
+    },
+    "output_tok": {
+      "mean": 295524.157,
+      "ci_low": 225969.725,
+      "ci_high": 371427.6
+    },
+    "runtime": {
+      "mean": 584.673,
+      "ci_low": 365.297,
+      "ci_high": 831.842
+    }
+  },
+  "CWE-119": {
+    "f1": {
+      "mean": 0.618,
+      "ci_low": 0.534,
+      "ci_high": 0.705
+    },
+    "pair_acc": {
+      "mean": 0.296,
+      "ci_low": 0.192,
+      "ci_high": 0.4
+    },
+    "vul_brier": {
+      "mean": 0.335,
+      "ci_low": 0.258,
+      "ci_high": 0.411
+    },
+    "sol_brier": {
+      "mean": 0.35,
+      "ci_low": 0.268,
+      "ci_high": 0.432
+    },
+    "inf_acc": {
+      "mean": 0.814,
+      "ci_low": 0.667,
+      "ci_high": 0.949
+    },
+    "mis_acc": {
+      "mean": 0.529,
+      "ci_low": 0.431,
+      "ci_high": 0.63
+    },
+    "presence": {
+      "mean": 0.477,
+      "ci_low": 0.341,
+      "ci_high": 0.625
+    },
+    "input_tok": {
+      "mean": 574256.831,
+      "ci_low": 402110.6,
+      "ci_high": 792773.5
+    },
+    "output_tok": {
+      "mean": 270229.114,
+      "ci_low": 207271.625,
+      "ci_high": 340007.5
+    },
+    "runtime": {
+      "mean": 384.707,
+      "ci_low": 232.544,
+      "ci_high": 562.513
+    }
+  },
+  "CWE-125": {
+    "f1": {
+      "mean": 0.716,
+      "ci_low": 0.615,
+      "ci_high": 0.814
+    },
+    "pair_acc": {
+      "mean": 0.487,
+      "ci_low": 0.364,
+      "ci_high": 0.619
+    },
+    "vul_brier": {
+      "mean": 0.224,
+      "ci_low": 0.152,
+      "ci_high": 0.298
+    },
+    "sol_brier": {
+      "mean": 0.246,
+      "ci_low": 0.167,
+      "ci_high": 0.329
+    },
+    "inf_acc": {
+      "mean": 0.879,
+      "ci_low": 0.769,
+      "ci_high": 0.971
+    },
+    "mis_acc": {
+      "mean": 0.593,
+      "ci_low": 0.44,
+      "ci_high": 0.742
+    },
+    "presence": {
+      "mean": 0.5,
+      "ci_low": 0.329,
+      "ci_high": 0.657
+    },
+    "input_tok": {
+      "mean": 375892.097,
+      "ci_low": 276963.05,
+      "ci_high": 482090.55
+    },
+    "output_tok": {
+      "mean": 209902.546,
+      "ci_low": 155961.975,
+      "ci_high": 266929.275
+    },
+    "runtime": {
+      "mean": 254.57,
+      "ci_low": 155.384,
+      "ci_high": 361.937
+    }
+  },
+  "CWE-200": {
+    "f1": {
+      "mean": 0.66,
+      "ci_low": 0.553,
+      "ci_high": 0.763
+    },
+    "pair_acc": {
+      "mean": 0.421,
+      "ci_low": 0.292,
+      "ci_high": 0.542
+    },
+    "vul_brier": {
+      "mean": 0.272,
+      "ci_low": 0.189,
+      "ci_high": 0.356
+    },
+    "sol_brier": {
+      "mean": 0.31,
+      "ci_low": 0.217,
+      "ci_high": 0.406
+    },
+    "inf_acc": {
+      "mean": 0.657,
+      "ci_low": 0.5,
+      "ci_high": 0.806
+    },
+    "mis_acc": {
+      "mean": 0.649,
+      "ci_low": 0.488,
+      "ci_high": 0.8
+    },
+    "presence": {
+      "mean": 0.514,
+      "ci_low": 0.355,
+      "ci_high": 0.671
+    },
+    "input_tok": {
+      "mean": 284860.657,
+      "ci_low": 205262.1,
+      "ci_high": 386253.9
+    },
+    "output_tok": {
+      "mean": 144558.291,
+      "ci_low": 111898.275,
+      "ci_high": 182943.425
+    },
+    "runtime": {
+      "mean": 131.372,
+      "ci_low": 69.664,
+      "ci_high": 204.892
+    }
+  },
+  "CWE-264": {
+    "f1": {
+      "mean": 0.81,
+      "ci_low": 0.711,
+      "ci_high": 0.903
+    },
+    "pair_acc": {
+      "mean": 0.645,
+      "ci_low": 0.524,
+      "ci_high": 0.778
+    },
+    "vul_brier": {
+      "mean": 0.189,
+      "ci_low": 0.097,
+      "ci_high": 0.293
+    },
+    "sol_brier": {
+      "mean": 0.162,
+      "ci_low": 0.082,
+      "ci_high": 0.247
+    },
+    "inf_acc": {
+      "mean": 0.846,
+      "ci_low": 0.736,
+      "ci_high": 0.94
+    },
+    "mis_acc": {
+      "mean": 0.674,
+      "ci_low": 0.286,
+      "ci_high": 1.0
+    },
+    "presence": {
+      "mean": 0.855,
+      "ci_low": 0.726,
+      "ci_high": 0.968
+    },
+    "input_tok": {
+      "mean": 323630.334,
+      "ci_low": 183726.9,
+      "ci_high": 536336.6
+    },
+    "output_tok": {
+      "mean": 154500.276,
+      "ci_low": 103759.7,
+      "ci_high": 213484.875
+    },
+    "runtime": {
+      "mean": 199.698,
+      "ci_low": 88.944,
+      "ci_high": 334.087
+    }
+  },
+  "CWE-362": {
+    "f1": {
+      "mean": 0.668,
+      "ci_low": 0.599,
+      "ci_high": 0.735
+    },
+    "pair_acc": {
+      "mean": 0.408,
+      "ci_low": 0.327,
+      "ci_high": 0.49
+    },
+    "vul_brier": {
+      "mean": 0.26,
+      "ci_low": 0.21,
+      "ci_high": 0.311
+    },
+    "sol_brier": {
+      "mean": 0.282,
+      "ci_low": 0.224,
+      "ci_high": 0.34
+    },
+    "inf_acc": {
+      "mean": 0.758,
+      "ci_low": 0.687,
+      "ci_high": 0.828
+    },
+    "mis_acc": {
+      "mean": 0.51,
+      "ci_low": 0.382,
+      "ci_high": 0.64
+    },
+    "presence": {
+      "mean": 0.735,
+      "ci_low": 0.642,
+      "ci_high": 0.821
+    },
+    "input_tok": {
+      "mean": 733729.649,
+      "ci_low": 485461.05,
+      "ci_high": 1082110.6
+    },
+    "output_tok": {
+      "mean": 341270.884,
+      "ci_low": 277484.225,
+      "ci_high": 412660.0
+    },
+    "runtime": {
+      "mean": 405.506,
+      "ci_low": 229.784,
+      "ci_high": 626.031
+    }
+  },
+  "CWE-401": {
+    "f1": {
+      "mean": 0.604,
+      "ci_low": 0.459,
+      "ci_high": 0.737
+    },
+    "pair_acc": {
+      "mean": 0.347,
+      "ci_low": 0.2,
+      "ci_high": 0.5
+    },
+    "vul_brier": {
+      "mean": 0.254,
+      "ci_low": 0.161,
+      "ci_high": 0.348
+    },
+    "sol_brier": {
+      "mean": 0.451,
+      "ci_low": 0.322,
+      "ci_high": 0.579
+    },
+    "inf_acc": {
+      "mean": 0.731,
+      "ci_low": 0.5,
+      "ci_high": 0.929
+    },
+    "mis_acc": {
+      "mean": 0.563,
+      "ci_low": 0.385,
+      "ci_high": 0.733
+    },
+    "presence": {
+      "mean": 0.346,
+      "ci_low": 0.154,
+      "ci_high": 0.538
+    },
+    "input_tok": {
+      "mean": 238650.322,
+      "ci_low": 154801.55,
+      "ci_high": 341246.7
+    },
+    "output_tok": {
+      "mean": 117741.354,
+      "ci_low": 77586.8,
+      "ci_high": 172150.55
+    },
+    "runtime": {
+      "mean": 133.602,
+      "ci_low": 45.398,
+      "ci_high": 256.976
+    }
+  },
+  "CWE-416": {
+    "f1": {
+      "mean": 0.631,
+      "ci_low": 0.582,
+      "ci_high": 0.678
+    },
+    "pair_acc": {
+      "mean": 0.368,
+      "ci_low": 0.312,
+      "ci_high": 0.423
+    },
+    "vul_brier": {
+      "mean": 0.275,
+      "ci_low": 0.239,
+      "ci_high": 0.312
+    },
+    "sol_brier": {
+      "mean": 0.332,
+      "ci_low": 0.289,
+      "ci_high": 0.374
+    },
+    "inf_acc": {
+      "mean": 0.761,
+      "ci_low": 0.695,
+      "ci_high": 0.823
+    },
+    "mis_acc": {
+      "mean": 0.476,
+      "ci_low": 0.41,
+      "ci_high": 0.541
+    },
+    "presence": {
+      "mean": 0.614,
+      "ci_low": 0.542,
+      "ci_high": 0.687
+    },
+    "input_tok": {
+      "mean": 1212183.395,
+      "ci_low": 1003389.65,
+      "ci_high": 1457764.1
+    },
+    "output_tok": {
+      "mean": 744367.593,
+      "ci_low": 654200.05,
+      "ci_high": 844885.225
+    },
+    "runtime": {
+      "mean": 752.337,
+      "ci_low": 575.889,
+      "ci_high": 953.954
+    }
+  },
+  "CWE-476": {
+    "f1": {
+      "mean": 0.664,
+      "ci_low": 0.593,
+      "ci_high": 0.731
+    },
+    "pair_acc": {
+      "mean": 0.381,
+      "ci_low": 0.293,
+      "ci_high": 0.467
+    },
+    "vul_brier": {
+      "mean": 0.254,
+      "ci_low": 0.186,
+      "ci_high": 0.331
+    },
+    "sol_brier": {
+      "mean": 0.38,
+      "ci_low": 0.326,
+      "ci_high": 0.434
+    },
+    "inf_acc": {
+      "mean": 0.718,
+      "ci_low": 0.619,
+      "ci_high": 0.818
+    },
+    "mis_acc": {
+      "mean": 0.663,
+      "ci_low": 0.571,
+      "ci_high": 0.753
+    },
+    "presence": {
+      "mean": 0.428,
+      "ci_low": 0.317,
+      "ci_high": 0.542
+    },
+    "input_tok": {
+      "mean": 766282.218,
+      "ci_low": 544664.55,
+      "ci_high": 1060544.7
+    },
+    "output_tok": {
+      "mean": 326348.742,
+      "ci_low": 264860.925,
+      "ci_high": 396114.975
+    },
+    "runtime": {
+      "mean": 326.092,
+      "ci_low": 207.648,
+      "ci_high": 464.081
+    }
+  },
+  "CWE-787": {
+    "f1": {
+      "mean": 0.542,
+      "ci_low": 0.436,
+      "ci_high": 0.649
+    },
+    "pair_acc": {
+      "mean": 0.298,
+      "ci_low": 0.2,
+      "ci_high": 0.394
+    },
+    "vul_brier": {
+      "mean": 0.277,
+      "ci_low": 0.199,
+      "ci_high": 0.359
+    },
+    "sol_brier": {
+      "mean": 0.399,
+      "ci_low": 0.317,
+      "ci_high": 0.48
+    },
+    "inf_acc": {
+      "mean": 0.614,
+      "ci_low": 0.467,
+      "ci_high": 0.75
+    },
+    "mis_acc": {
+      "mean": 0.499,
+      "ci_low": 0.361,
+      "ci_high": 0.639
+    },
+    "presence": {
+      "mean": 0.64,
+      "ci_low": 0.511,
+      "ci_high": 0.766
+    },
+    "input_tok": {
+      "mean": 597383.142,
+      "ci_low": 412653.15,
+      "ci_high": 818883.05
+    },
+    "output_tok": {
+      "mean": 283991.304,
+      "ci_low": 214182.65,
+      "ci_high": 362159.225
+    },
+    "runtime": {
+      "mean": 370.115,
+      "ci_low": 224.439,
+      "ci_high": 536.07
+    }
+  },
+  "Overall": {
+    "f1": {
+      "mean": 0.647,
+      "ci_low": 0.622,
+      "ci_high": 0.672
+    },
+    "pair_acc": {
+      "mean": 0.39,
+      "ci_low": 0.36,
+      "ci_high": 0.42
+    },
+    "vul_brier": {
+      "mean": 0.268,
+      "ci_low": 0.247,
+      "ci_high": 0.289
+    },
+    "sol_brier": {
+      "mean": 0.328,
+      "ci_low": 0.305,
+      "ci_high": 0.351
+    },
+    "inf_acc": {
+      "mean": 0.752,
+      "ci_low": 0.72,
+      "ci_high": 0.785
+    },
+    "mis_acc": {
+      "mean": 0.548,
+      "ci_low": 0.511,
+      "ci_high": 0.585
+    },
+    "presence": {
+      "mean": 0.593,
+      "ci_low": 0.556,
+      "ci_high": 0.63
+    },
+    "input_tok": {
+      "mean": 5606646.375,
+      "ci_low": 5024295.35,
+      "ci_high": 6253007.1
+    },
+    "output_tok": {
+      "mean": 2888434.261,
+      "ci_low": 2685911.45,
+      "ci_high": 3101030.45
+    },
+    "runtime": {
+      "mean": 3542.674,
+      "ci_low": 3060.761,
+      "ci_high": 4045.557
+    },
+    "NDCG@1": {
+      "mean": 0.547,
+      "ci_low": 0.51,
+      "ci_high": 0.585
+    },
+    "NDCG@3": {
+      "mean": 0.403,
+      "ci_low": 0.373,
+      "ci_high": 0.432
+    },
+    "NDCG@5": {
+      "mean": 0.371,
+      "ci_low": 0.342,
+      "ci_high": 0.4
+    },
+    "NDCG@10": {
+      "mean": 0.349,
+      "ci_low": 0.32,
+      "ci_high": 0.378
+    }
+  }
+}

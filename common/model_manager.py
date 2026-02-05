@@ -1,0 +1,632 @@
+import config as cfg
+import openai
+import logging
+import json
+import time
+from util.common_util import fill_template
+from google import genai
+from google.genai import types
+import anthropic
+import pdb
+from google.genai import client as GClient
+
+
+try:
+    from anthropic import Anthropic
+except:
+    logging.warning("Anthropic package is not installed. Please install it to use Claude model.")
+import os
+from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+from anthropic.types.messages.batch_create_params import Request
+
+import constant
+
+
+class BaseModel:
+    def __init__(self, model_name, base_url, api_key = None):
+        self.__base_url = base_url
+        self.__model_name = model_name
+        self.__api_key = api_key
+        self.__client = None
+        # if api_key:
+        #     try:
+        #         self.__client = openai.OpenAI(api_key = api_key, base_url = base_url)
+        #     except:
+        #         # Lower version of openai package does not support openai.OpenAI
+        #         openai.api_key = api_key
+        #         openai.api_base = base_url
+        #         logging.warning("Outdated openai package. Use the Module-level global client instead.")
+
+    def _set_client(self, client):
+        self.__client = client
+
+    def get_client(self):
+        return self.__client
+    
+    def get_api_key(self):
+        return self.__api_key
+    
+    def get_base_url(self):
+        return self.__base_url
+
+    @staticmethod
+    def get_messages(user_prompt: str, sys_prompt: str = None) -> list:
+        if sys_prompt:
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        else:
+            messages = [{"role": "user", "content": user_prompt}]
+        return messages
+
+    def get_response_with_messages(self, messages: list, **kwargs) -> str:
+        logging.disable(logging.INFO)
+        response_content = None
+        input_tokens = 0
+        output_tokens = 0
+
+        try:
+            if self.__client:
+                response = self.__client.chat.completions.create(
+                    model = self.__model_name,
+                    messages = messages,
+                    stream = False,
+                    **kwargs
+                )
+                if response.usage:
+                    input_tokens = response.usage.prompt_tokens
+                    output_tokens = response.usage.completion_tokens
+
+                response_content = response.choices[0].message.content
+            else:
+                # use the module-level global client
+                openai.api_key = self.__api_key
+                openai.api_base = self.__base_url
+                response = openai.ChatCompletion.create(
+                    model = self.__model_name,
+                    messages = messages,
+                    **kwargs
+                )
+                if response.usage:
+                    input_tokens = response.usage.prompt_tokens
+                    output_tokens = response.usage.completion_tokens
+
+                response_content = response.choices[0]["message"]["content"]
+        except Exception as e:
+            logging.error(f"Error while calling {self.__model_name} API: {e}")
+        logging.disable(logging.NOTSET)
+        return response_content, input_tokens, output_tokens
+    
+    def get_model_name(self):
+        return self.__model_name
+
+    def set_proxy(self, proxy: str = cfg.OPENAI_API_CONNECTION_PROXY):
+        if "http_proxy" not in os.environ:
+            os.environ["http_proxy"] = proxy
+        if "https_proxy" not in os.environ:
+            os.environ["https_proxy"] = proxy
+
+    def unset_proxy(self):
+        if "http_proxy" in os.environ:
+            del os.environ["http_proxy"]
+        if "https_proxy" in os.environ:
+            del os.environ["https_proxy"]
+
+    def create_batch_file(self, messages, output_path, id_nums):
+        #create the jsonl batch file in the output_dir
+        custom_id = 0
+        batch = []
+        
+        for message in messages:
+            batch.append(fill_template(self.__model_name, message, id_nums[custom_id]))
+            custom_id +=1
+        
+        with open(output_path, "w") as f:
+            for obj in batch:
+                f.write(json.dumps(obj) + "\n")
+        
+
+class DeepSeekModel(BaseModel):
+    def __init__(self, model_name):
+        super().__init__(
+            model_name = model_name,
+            base_url = cfg.deepseek_api_base,
+            api_key = cfg.deepseek_api_key
+        )
+
+class GPTModel(BaseModel):
+    def __init__(self, model_name):
+        super().__init__(
+            model_name = model_name,
+            base_url = cfg.openkey_openai_api_base,
+            api_key = cfg.openkey_openai_api_key
+        )
+        self._set_client(openai.OpenAI(api_key = self.get_api_key(), base_url = self.get_base_url()))
+
+    def get_response_with_messages(self, messages: list, **kwargs) -> str:
+
+        client = self.get_client()
+
+        name = self.get_model_name()
+
+        if "5.2" in name:
+            response = client.chat.completions.create(
+                model = name,
+                messages = messages,
+                reasoning_effort = "xhigh",
+                stream = False,
+                timeout = 1200,
+            )
+
+        else:
+            response = client.chat.completions.create(
+                    model = name,
+                    messages = messages,
+                    stream = False,
+                    **kwargs
+                )
+        response_content = response.choices[0].message.content
+        
+        if response.usage:
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+
+        return response_content, input_tokens, output_tokens
+
+    def upload_file(self, filepath):
+        client = self.get_client()
+
+        batch_input_file = client.files.create(
+            file=open(filepath, "rb"),
+            purpose="batch"
+        )
+        return batch_input_file
+    
+    def run_batch(self, inputfile, output_path):
+        client = self.get_client()
+        
+        batch = client.batches.create(
+            input_file_id= inputfile.id,
+            endpoint="/v1/chat/completions",
+            completion_window="24h",
+            metadata={
+                "description": "test upload"
+            }
+        )
+        
+        while(batch.status != "completed"):
+            if batch.status == "failed":
+                raise Exception(f"Batch Job Failed: {batch.errors}")
+            time.sleep(60)
+            batch = client.batches.retrieve(batch.id)            
+        
+        file_response = client.files.content(batch.output_file_id)
+
+        with open(output_path, "w") as f:
+            f.write(file_response.read().decode("utf-8"))
+
+        total_input = 0
+        total_output = 0
+
+        for line in file_response.iter_lines():
+            if not line:
+                continue
+
+            data = json.loads(line)
+            usage = data.get("response", {}).get("body", {}).get("usage", {})
+            total_input += usage.get("prompt_tokens", 0)
+            total_output += usage.get("completion_tokens", 0)
+
+        return total_input, total_output
+
+    def read(self, filepath):
+        results = {}
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                item = json.loads(line)
+
+                custom_id = item.get("custom_id")
+                choices = (
+                    item.get("response", {})
+                        .get("body", {})
+                        .get("choices", [])
+                )
+
+                text = ""
+                if choices:
+                    text = choices[0].get("message", {}).get("content", "")
+
+                if custom_id is not None:
+                    results[custom_id] = text
+
+        return results
+
+class QwenModel(BaseModel):
+    def __init__(self, model_name):
+        super().__init__(
+            model_name = model_name,
+            base_url = cfg.qwen_api_base,
+            api_key = cfg.qwen_api_key
+        )
+
+
+class GeminiModel(BaseModel): 
+    def __init__(self, model_name):
+        super().__init__(
+            model_name = model_name,
+            base_url = "none",
+            api_key = cfg.gemini_api_key
+        )
+        self._set_client(GClient.Client(api_key = self.get_api_key()))
+
+    def load_sys(self, sys_prompt):
+            self.__sys_prompt = sys_prompt
+    
+    def get_sys(self):
+        return self.__sys_prompt
+
+    def get_messages(self, user_prompt: str, sys_prompt: str = None) -> list:
+        messages = []
+        
+        self.load_sys(sys_prompt)
+
+        messages = [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": user_prompt
+                    }
+                ]
+            }
+        ]
+        
+        return messages
+
+    def get_response_with_messages(self, messages, **kwargs):
+        logging.disable(logging.INFO)
+        response_content = None
+
+        client = self.get_client()
+
+        if "2.5" in self.get_model_name():
+            thinking_config = types.ThinkingConfig(thinking_budget=16000)
+        elif "3" in self.get_model_name():
+            thinking_config = types.ThinkingConfig(thinking_level="high")
+        else:
+            params = None
+
+        sys_prompt = self.get_sys()
+
+        config = types.GenerateContentConfig(
+            thinking_config=thinking_config,
+            system_instruction=sys_prompt
+        )
+
+        try:
+            response = client.models.generate_content(
+                model=self.get_model_name(),
+                contents=messages,
+                config=config
+            )
+            # Extract text
+            response_content = response.text 
+
+        except Exception as e:
+            logging.error(f"Error while calling {self.get_model_name()} API: {e}")
+
+        output_tok = response.usage_metadata.candidates_token_count + response.usage_metadata.thoughts_token_count
+        logging.disable(logging.NOTSET)
+
+        return response_content, response.usage_metadata.prompt_token_count, output_tok
+
+    def upload_file(self, filepath): #uploads a jsonl file to the API 
+        client = self.get_client()
+        
+        batch_input_file = client.files.upload(
+            file=filepath,
+            config=types.UploadFileConfig(display_name=f'{filepath}/output!', mime_type='jsonl')
+        )
+        return batch_input_file
+    
+    def run_batch(self, inputfile, output_path): #runs the batch and writes the output. Also returns the Input and Output Tokens 
+        
+        model_name = "models/" + self.get_model_name()
+        client = self.get_client()
+
+        batch = client.batches.create(
+            model = model_name,
+            src= inputfile.name
+        )
+        batch_name = batch.name
+        
+        completed_states = set([
+            'JOB_STATE_SUCCEEDED',
+            'JOB_STATE_FAILED',
+            'JOB_STATE_CANCELLED',
+            'JOB_STATE_EXPIRED',
+        ])
+        batch_job = client.batches.get(name=batch_name)
+
+        while batch_job.state.name not in completed_states: #poll here
+            print(f"Current state: {batch_job.state.name}")
+            time.sleep(60)
+            batch_job = client.batches.get(name=batch_name)
+
+        print(f"Job finished with state: {batch_job.state.name}")
+        if batch_job.state.name == 'JOB_STATE_FAILED': #if failed raise an exception
+            if batch_job.error:
+                print(f"Error: {batch_job.error}")
+            raise Exception(f"Error: {batch_job.error}")
+        
+        elif batch_job.state.name == 'JOB_STATE_SUCCEEDED': # if suceeds write to output file
+            result_file_name = batch_job.dest.file_name
+            print("Downloading result file content...")
+            file_content = client.files.download(file=result_file_name)
+            file_decoded = file_content.decode('utf-8')
+
+            with open(output_path, "w") as f:
+                f.write(file_decoded)
+
+            input_tok = 0
+            output_tok = 0
+            for line in file_decoded.strip().split('\n'):
+                data = json.loads(line)
+                metadata = data.get('response', {}).get('usageMetadata', {})
+                prompt_tokens = metadata.get('promptTokenCount', 0)
+                candidate_tokens = metadata.get('candidatesTokenCount', 0)
+            
+                input_tok += prompt_tokens
+                output_tok += candidate_tokens
+
+            return input_tok, output_tok
+        
+        else:
+            print(batch_job.state.name)
+        
+        if batch_job.error:
+            print(f"Error: {batch_job.error}")
+
+        return 0, 0
+
+    def read(self, filepath):
+        results = {}
+
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                item = json.loads(line)
+
+                key = item.get("key")
+                content_parts = (
+                    item.get("response", {})
+                        .get("candidates", [{}])[0]
+                        .get("content", {})
+                        .get("parts", [])
+                )
+
+                text = "".join(
+                    part.get("text", "")
+                    for part in content_parts
+                    if "text" in part
+                )
+
+                if key is not None:
+                    results[key] = text
+                    
+
+        return results
+
+
+class ClaudeModel(BaseModel):
+    def __init__(self, model_name):
+        super().__init__(
+            model_name = model_name,
+            base_url = cfg.claude_api_base,
+            api_key = cfg.claude_api_key
+        )
+        self._set_client(Anthropic(api_key = cfg.claude_api_key, base_url = cfg.claude_api_base))
+        self.__sys_prompt = None
+
+    def load_sys(self, sys_prompt):
+        self.__sys_prompt = sys_prompt
+    
+    def get_sys(self):
+        return self.__sys_prompt
+
+    def get_messages(self, user_prompt: str, sys_prompt: str = None) -> list:
+        """
+        Returns messages list and system prompt separately for Claude API.
+        Claude handles system prompts as a separate parameter, not in messages.
+        """
+        self.load_sys(sys_prompt)
+        messages = [{"role": "user", "content": user_prompt}]
+
+        return messages
+
+    def get_response_with_messages(self, messages: list, **kwargs) -> tuple:
+        logging.disable(logging.INFO)
+        response_content = None
+        input_tokens = 0
+        output_tokens = 0
+        client = self.get_client()
+
+        try:
+            if client is not None:               
+                response = client.messages.create(
+                    model = self.get_model_name(),
+                    messages = messages,
+                    max_tokens = 20096,
+                    stream = False,
+                    system = self.get_sys(),
+                    thinking = {
+                        "type": "enabled",
+                        "budget_tokens": 16000 # This is Claude's version of thinking_config
+                    }
+                )
+
+                # Claude returns content as a list of content blocks
+                for block in response.content:
+                    if block.type == "thinking":
+                        continue
+                    elif block.type == "text":
+                        response_content = block.text
+                
+                if response.usage:
+                    input_tokens = response.usage.input_tokens
+                    output_tokens = response.usage.output_tokens
+
+            else:
+                # If using anthropic module directly
+                client = anthropic.Anthropic(api_key=self.get_api_key())
+                
+                request_params = {
+                    "model": self.get_model_name(),
+                    "messages": messages,
+                    "max_tokens": kwargs.pop("max_tokens", cfg.DEFAULT_MAX_TOKENS),
+                    **kwargs
+                }
+                
+                if self.get_sys() is not None:
+                    request_params["system"] = self.get_sys()
+                
+                response = client.messages.create(**request_params)
+                
+                if response.usage:
+                    input_tokens = response.usage.input_tokens
+                    output_tokens = response.usage.output_tokens
+
+                response_content = response.content[0].text
+                
+        except Exception as e:
+            logging.error(f"Error while calling {self.get_model_name()} API: {e}")
+        
+        logging.disable(logging.NOTSET)
+        return response_content, input_tokens, output_tokens
+    
+
+    def upload_file(self, filepath):
+        batch_requests = []
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                data = json.loads(line)
+
+                req = Request(
+                    custom_id=data["custom_id"],
+                    params=MessageCreateParamsNonStreaming(
+                        model=data["params"]["model"],
+                        max_tokens=data["params"]["max_tokens"],
+                        messages=data["params"]["messages"],
+                    )
+                )
+
+                batch_requests.append(req)
+
+        return batch_requests
+
+    def run_batch(self, inputfile, output_path): #takes the location of our inputfile and creates our batch job
+        client = self.get_client()
+        
+        batch = client.messages.batches.create(
+            requests = inputfile
+        )
+        
+        while batch.processing_status != "ended":
+            time.sleep(60)
+            batch = client.messages.batches.retrieve(batch.id)            
+        
+        file_response = client.messages.batches.results(batch.id)
+        total_input = 0
+        total_output = 0
+        all_results = []
+
+
+        for result in file_response:
+            match result.result.type:
+                case "succeeded":
+                    total_input += result.result.message.usage.input_tokens
+                    total_output += result.result.message.usage.output_tokens
+                    all_results.append(result.model_dump())
+                    
+                case "errored":
+                    if result.result.error.type == "invalid_request":
+                        # Request body must be fixed before re-sending request
+                        print(f"Validation error {result.custom_id}")
+                    else:
+                        # Request can be retried directly
+                        print(f"Server error {result.result.error}")
+                case "expired":
+                    print(f"Request expired {result.custom_id}")
+                case _:
+                    print(f"Unhandled result type: {result.result.type}")
+        
+        with open(output_path, "w", encoding="utf-8") as f:
+            for item in all_results:
+                f.write(json.dumps(item) + "\n")
+
+        return total_input, total_output
+    
+    def read(self, filepath):
+        results = {}
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                item = json.loads(line)
+
+                custom_id = item.get("custom_id")
+                content_blocks = (
+                    item.get("result", {})
+                        .get("message", {})
+                        .get("content", [])
+                )
+
+                text = "".join(
+                    block.get("text", "")
+                    for block in content_blocks
+                    if block.get("type") == "text"
+                )
+
+                if custom_id is not None:
+                    results[custom_id] = text
+
+        return results
+
+
+
+class ModelManager:
+    __models = {
+        "qwen": QwenModel,
+        "deepseek": DeepSeekModel,
+        "gpt": GPTModel,
+        "claude": ClaudeModel, 
+        "gemini": GeminiModel
+    }
+
+    __instances_cache = {}
+
+    @classmethod
+    def get_model_instance(cls, model_name: str) -> BaseModel:
+        model_name_kw = ""
+        if "qwen" in model_name.lower():
+            model_name_kw = "qwen"
+        elif "deepseek" in model_name.lower():
+            model_name_kw = "deepseek"
+        elif "gpt" in model_name.lower():
+            model_name_kw = "gpt"
+        elif "claude" in model_name.lower():  
+            model_name_kw = "claude"
+        elif "gemini" in model_name.lower():
+            model_name_kw = "gemini"
+        
+        if model_name_kw not in cls.__models:
+            raise ValueError("Unsupported model name")
+
+        if model_name not in cls.__instances_cache:
+            model_class = cls.__models.get(model_name_kw, None)
+            if not model_class:
+                raise ValueError("Unsupported model name")
+            cls.__instances_cache[model_name] = model_class(model_name)
+        model_instance = cls.__instances_cache[model_name]
+        return model_instance

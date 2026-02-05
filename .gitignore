@@ -1,0 +1,5 @@
+.DS_Store
+*.pyc
+common/api_keys/
+.vscode/
+.venv/
